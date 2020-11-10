@@ -87,6 +87,9 @@ if (CMAKE_BUILD_TYPE MATCHES Debug)
    endif()
 endif() 
 
+if (CMAKE_BUILD_TYPE MATCHES Release OR CMAKE_BUILD_TYPE MATCHES RELWITHDEBINFO)
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fno-var-tracking-assignments")
+endif()
 
 if(BUILD_OPENFAST_SIMULINK_API)
 

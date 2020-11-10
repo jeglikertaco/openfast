@@ -19,6 +19,10 @@ if (GENERATE_TYPES)
   generate_f90_types(src/FAST_Farm_Registry.txt ${CMAKE_CURRENT_LIST_DIR}/src/FAST_Farm_Types.f90 -noextrap)
 endif()
 
+if (CMAKE_BUILD_TYPE MATCHES Release OR CMAKE_BUILD_TYPE MATCHES RELWITHDEBINFO)
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fno-var-tracking-assignments")
+endif()
+
 FIND_PACKAGE( OpenMP REQUIRED)
 if(OPENMP_FOUND)
   set(CMAKE_FORTRAN_FLAGS "${CMAKE_FORTRAN_FLAGS} ${OpenMP_FORTRAN_FLAGS}")
