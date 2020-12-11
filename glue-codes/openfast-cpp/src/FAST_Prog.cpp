@@ -41,23 +41,23 @@ void readInputFile(fast::fastInputs & fi, std::string cInterfaceInputFile, doubl
     if (fi.nTurbinesGlob > 0) {
       
       if(cDriverInp["dryRun"]) {
-	fi.dryRun = cDriverInp["dryRun"].as<bool>();
+	      fi.dryRun = cDriverInp["dryRun"].as<bool>();
       } 
       
       if(cDriverInp["debug"]) {
-	fi.debug = cDriverInp["debug"].as<bool>();
+	      fi.debug = cDriverInp["debug"].as<bool>();
       } 
 
       if(cDriverInp["simStart"]) {
-	if (cDriverInp["simStart"].as<std::string>() == "init") {
-	  fi.simStart = fast::init;
-	} else if(cDriverInp["simStart"].as<std::string>() == "trueRestart") {
-	  fi.simStart = fast::trueRestart;
-	} else if(cDriverInp["simStart"].as<std::string>() == "restartDriverInitFAST") {
-	  fi.simStart = fast::restartDriverInitFAST;
-	} else {
-	  throw std::runtime_error("simStart is not well defined in the input file");
-	}
+        if (cDriverInp["simStart"].as<std::string>() == "init") {
+          fi.simStart = fast::init;
+        } else if(cDriverInp["simStart"].as<std::string>() == "trueRestart") {
+          fi.simStart = fast::trueRestart;
+        } else if(cDriverInp["simStart"].as<std::string>() == "restartDriverInitFAST") {
+          fi.simStart = fast::restartDriverInitFAST;
+        } else {
+          throw std::runtime_error("simStart is not well defined in the input file");
+        }
       }
       
       fi.tStart = cDriverInp["tStart"].as<double>();
@@ -67,21 +67,21 @@ void readInputFile(fast::fastInputs & fi, std::string cInterfaceInputFile, doubl
       fi.tMax = cDriverInp["tMax"].as<double>(); // tMax is the total duration to which you want to run FAST. This should be the same or greater than the max time given in the FAST fst file. Choose this carefully as FAST writes the output file only at this point if you choose the binary file output.
       
       if(cDriverInp["superController"]) {
-	fi.scStatus = cDriverInp["superController"].as<bool>();
-	fi.scLibFile = cDriverInp["scLibFile"].as<std::string>();
-	fi.numScInputs = cDriverInp["numScInputs"].as<int>();
-	fi.numScOutputs = cDriverInp["numScOutputs"].as<int>();
+        fi.scStatus = cDriverInp["superController"].as<bool>();
+        fi.scLibFile = cDriverInp["scLibFile"].as<std::string>();
+        fi.numScInputs = cDriverInp["numScInputs"].as<int>();
+        fi.numScOutputs = cDriverInp["numScOutputs"].as<int>();
       }
       
       fi.globTurbineData.resize(fi.nTurbinesGlob);
       for (int iTurb=0; iTurb < fi.nTurbinesGlob; iTurb++) {
-	if (cDriverInp["Turbine" + std::to_string(iTurb)]) {
-	  readTurbineData(iTurb, fi, cDriverInp["Turbine" + std::to_string(iTurb)] );
-	} else {
-	  throw std::runtime_error("Node for Turbine" + std::to_string(iTurb) + " not present in input file or I cannot read it");
-	}
+        if (cDriverInp["Turbine" + std::to_string(iTurb)]) {
+          readTurbineData(iTurb, fi, cDriverInp["Turbine" + std::to_string(iTurb)] );
+        } else {
+          throw std::runtime_error("Node for Turbine" + std::to_string(iTurb) + " not present in input file or I cannot read it");
+        }
       }
-      
+
     } else {
       throw std::runtime_error("Number of turbines <= 0 ");
     }
@@ -106,44 +106,50 @@ int main() {
   double tEnd ; // This doesn't belong in the FAST - C++ interface 
   int ntEnd ; // This doesn't belong in the FAST - C++ interface
 
-  std::string cDriverInputFile="cDriver.i";
+  std::string cDriverInputFile="cDriver.yaml";
   fast::OpenFAST FAST;
   fast::fastInputs fi ;
   try {
     readInputFile(fi, cDriverInputFile, &tEnd);
-  }
-  catch( const std::runtime_error & ex) {
+  } catch( const std::runtime_error & ex) {
     std::cerr << ex.what() << std::endl ;
     std::cerr << "Program quitting now" << std::endl ;
     return 1;
   }
-  ntEnd = tEnd/fi.dtFAST;  //Calculate the last time step
+
+  // Calculate the last time step
+  ntEnd = tEnd/fi.dtFAST;
 
   FAST.setInputs(fi);
   FAST.allocateTurbinesToProcsSimple(); 
   // Or allocate turbines to procs by calling "setTurbineProcNo(iTurbGlob, procId)" for turbine.
 
   FAST.init();
-  if (FAST.isTimeZero()) {
-    FAST.solution0();
+
+  if (FAST.isTimeZero()) FAST.solution0();
+
+  if ( FAST.isDryRun() ) {
+    FAST.end() ;
+    MPI_Finalize() ;
+    return 0;
   }
 
-  if( !FAST.isDryRun() ) {
-    for (int nt = FAST.get_ntStart(); nt < ntEnd; nt++) {
-      FAST.step();
-      if (FAST.isDebug()) {
-	FAST.computeTorqueThrust(0,torque,thrust);
-	std::cout.precision(16);
-	std::cout << "Torque = " << torque[0] << " " << torque[1] << " " << torque[2] << std::endl ;
-	std::cout << "Thrust = " << thrust[0] << " " << thrust[1] << " " << thrust[2] << std::endl ;      
-      }
+  for (int nt = FAST.get_ntStart(); nt < ntEnd; nt++) {
+
+    FAST.step();
+
+    if (FAST.isDebug()) {
+      FAST.computeTorqueThrust(0,torque,thrust);
+      std::cout.precision(16);
+      std::cout << "Torque = " << torque[0] << " " << torque[1] << " " << torque[2] << std::endl ;
+      std::cout << "Thrust = " << thrust[0] << " " << thrust[1] << " " << thrust[2] << std::endl ;
     }
+
   }
 
   FAST.end() ;
   MPI_Finalize() ;
 
   return 0;
-    
-}
 
+}
