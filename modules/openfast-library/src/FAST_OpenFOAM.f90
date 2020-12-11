@@ -1,7 +1,7 @@
 MODULE FAST_OpenFOAM
 
     USE, INTRINSIC :: ISO_C_Binding
-    USE FAST_Types
+    USE FAST_Data
 
     IMPLICIT  NONE
 
@@ -9,11 +9,14 @@ CONTAINS
 
 subroutine FAST_OpFM_Init(iTurb, TMax, InputFileName_c, TurbID, NumSC2Ctrl, NumCtrl2SC, NumActForcePtsBlade, NumActForcePtsTower, TurbPosn, AbortErrLev_c, dt_c, NumBl_c, NumBlElem_c, &
                           OpFM_Input_from_FAST, OpFM_Output_to_FAST, SC_Input_from_FAST, SC_Output_to_FAST, ErrStat_c, ErrMsg_c) BIND (C, NAME='FAST_OpFM_Init')
+
    IMPLICIT NONE
+
 #ifndef IMPLICIT_DLLEXPORT
 !DEC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Init
 !GCC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Init
 #endif
+
    INTEGER(C_INT),         INTENT(IN   ) :: iTurb            ! Turbine number 
    REAL(C_DOUBLE),         INTENT(IN   ) :: TMax      
    CHARACTER(KIND=C_CHAR), INTENT(IN   ) :: InputFileName_c(IntfStrLen)      
@@ -89,9 +92,11 @@ subroutine FAST_OpFM_Init(iTurb, TMax, InputFileName_c, TurbID, NumSC2Ctrl, NumC
    END IF   
    
 end subroutine   
-==================================================================================================================================
+! ==================================================================================================================================
 subroutine FAST_OpFM_Solution0(iTurb, ErrStat_c, ErrMsg_c) BIND (C, NAME='FAST_OpFM_Solution0')
+
    IMPLICIT NONE
+
 #ifndef IMPLICIT_DLLEXPORT
 !DEC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Solution0
 !GCC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Solution0
@@ -114,17 +119,19 @@ subroutine FAST_OpFM_Solution0(iTurb, ErrStat_c, ErrMsg_c) BIND (C, NAME='FAST_O
    ErrStat_c     = ErrStat
    ErrMsg        = TRIM(ErrMsg)//C_NULL_CHAR
    ErrMsg_c      = TRANSFER( ErrMsg//C_NULL_CHAR, ErrMsg_c )
-   
-                        
+
 end subroutine FAST_OpFM_Solution0
-==================================================================================================================================
+! ==================================================================================================================================
 subroutine FAST_OpFM_Restart(iTurb, CheckpointRootName_c, AbortErrLev_c, dt_c, numblades_c, numElementsPerBlade_c, n_t_global_c, &
                       OpFM_Input_from_FAST, OpFM_Output_to_FAST, SC_Input_from_FAST, SC_Output_to_FAST, ErrStat_c, ErrMsg_c) BIND (C, NAME='FAST_OpFM_Restart')
+
    IMPLICIT NONE
+
 #ifndef IMPLICIT_DLLEXPORT
 !DEC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Restart
 !GCC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Restart
 #endif
+
    INTEGER(C_INT),         INTENT(IN   ) :: iTurb            ! Turbine number 
    CHARACTER(KIND=C_CHAR), INTENT(IN   ) :: CheckpointRootName_c(IntfStrLen)      
    INTEGER(C_INT),         INTENT(  OUT) :: AbortErrLev_c      
@@ -180,10 +187,11 @@ subroutine FAST_OpFM_Restart(iTurb, CheckpointRootName_c, AbortErrLev_c, dt_c, n
    call SetOpenFOAM_pointers(iTurb, OpFM_Input_from_FAST, OpFM_Output_to_FAST, SC_Input_from_FAST, SC_Output_to_FAST)
 
 end subroutine FAST_OpFM_Restart
-!==================================================================================================================================
+! ==================================================================================================================================
 subroutine SetOpenFOAM_pointers(iTurb, OpFM_Input_from_FAST, OpFM_Output_to_FAST, SC_Input_from_FAST, SC_Output_to_FAST)
 
     IMPLICIT NONE
+
     INTEGER(C_INT),         INTENT(IN   ) :: iTurb            ! Turbine number 
     TYPE(OpFM_InputType_C), INTENT(INOUT) :: OpFM_Input_from_FAST
     TYPE(OpFM_OutputType_C),INTENT(INOUT) :: OpFM_Output_to_FAST
@@ -223,58 +231,59 @@ subroutine SetOpenFOAM_pointers(iTurb, OpFM_Input_from_FAST, OpFM_Output_to_FAST
     SC_Output_to_FAST%fromSC     = Turbine(iTurb)%SC%y%c_obj%fromSC
        
  end subroutine SetOpenFOAM_pointers
- !==================================================================================================================================
+! ==================================================================================================================================
  subroutine FAST_OpFM_Step(iTurb, ErrStat_c, ErrMsg_c) BIND (C, NAME='FAST_OpFM_Step')
-    IMPLICIT NONE
- #ifndef IMPLICIT_DLLEXPORT
- !DEC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Step
- !GCC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Step
- #endif
-    INTEGER(C_INT),         INTENT(IN   ) :: iTurb            ! Turbine number 
-    INTEGER(C_INT),         INTENT(  OUT) :: ErrStat_c      
-    CHARACTER(KIND=C_CHAR), INTENT(  OUT) :: ErrMsg_c(IntfStrLen)      
-                     
-    
-    IF ( n_t_global > Turbine(iTurb)%p_FAST%n_TMax_m1 ) THEN !finish 
-       
-       ! we can't continue because we might over-step some arrays that are allocated to the size of the simulation
-       
-       if (iTurb .eq. (NumTurbines-1) ) then
-          IF (n_t_global == Turbine(iTurb)%p_FAST%n_TMax_m1 + 1) THEN  ! we call update an extra time in Simulink, which we can ignore until the time shift with outputs is solved
-             n_t_global = n_t_global + 1
-             ErrStat_c = ErrID_None
-             ErrMsg = C_NULL_CHAR
-             ErrMsg_c = TRANSFER( ErrMsg//C_NULL_CHAR, ErrMsg_c )
-          ELSE     
-             ErrStat_c = ErrID_Info
-             ErrMsg = "Simulation completed."//C_NULL_CHAR
-             ErrMsg_c = TRANSFER( ErrMsg//C_NULL_CHAR, ErrMsg_c )
-          END IF
-       end if
-       
-    ELSE
- 
-       if(Turbine(iTurb)%SC%p%scOn) then
-          CALL SC_SetOutputs(Turbine(iTurb)%p_FAST, Turbine(iTurb)%SrvD%Input(1), Turbine(iTurb)%SC, ErrStat, ErrMsg)
-       end if
- 
-       CALL FAST_Solution_T( t_initial, n_t_global, Turbine(iTurb), ErrStat, ErrMsg )                  
- 
-       if(Turbine(iTurb)%SC%p%scOn) then
-          CALL SC_SetInputs(Turbine(iTurb)%p_FAST, Turbine(iTurb)%SrvD%y, Turbine(iTurb)%SC, ErrStat, ErrMsg)
-       end if
-       
-       if (iTurb .eq. (NumTurbines-1) ) then
-          n_t_global = n_t_global + 1
-       end if
-             
-       ErrStat_c = ErrStat
-       ErrMsg = TRIM(ErrMsg)//C_NULL_CHAR
-       ErrMsg_c  = TRANSFER( ErrMsg//C_NULL_CHAR, ErrMsg_c )
-    END IF
-    
-       
- end subroutine FAST_OpFM_Step 
 
+   IMPLICIT NONE
+
+#ifndef IMPLICIT_DLLEXPORT
+!DEC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Step
+!GCC$ ATTRIBUTES DLLEXPORT :: FAST_OpFM_Step
+#endif
+
+   INTEGER(C_INT),         INTENT(IN   ) :: iTurb            ! Turbine number 
+   INTEGER(C_INT),         INTENT(  OUT) :: ErrStat_c      
+   CHARACTER(KIND=C_CHAR), INTENT(  OUT) :: ErrMsg_c(IntfStrLen)      
+
+   IF ( n_t_global > Turbine(iTurb)%p_FAST%n_TMax_m1 ) THEN !finish 
+      
+      ! we can't continue because we might over-step some arrays that are allocated to the size of the simulation
+      
+      if (iTurb .eq. (NumTurbines-1) ) then
+         IF (n_t_global == Turbine(iTurb)%p_FAST%n_TMax_m1 + 1) THEN  ! we call update an extra time in Simulink, which we can ignore until the time shift with outputs is solved
+            n_t_global = n_t_global + 1
+            ErrStat_c = ErrID_None
+            ErrMsg = C_NULL_CHAR
+            ErrMsg_c = TRANSFER( ErrMsg//C_NULL_CHAR, ErrMsg_c )
+         ELSE     
+            ErrStat_c = ErrID_Info
+            ErrMsg = "Simulation completed."//C_NULL_CHAR
+            ErrMsg_c = TRANSFER( ErrMsg//C_NULL_CHAR, ErrMsg_c )
+         END IF
+      end if
+      
+   ELSE
+ 
+      if(Turbine(iTurb)%SC%p%scOn) then
+         CALL SC_SetOutputs(Turbine(iTurb)%p_FAST, Turbine(iTurb)%SrvD%Input(1), Turbine(iTurb)%SC, ErrStat, ErrMsg)
+      end if
+
+      CALL FAST_Solution_T( t_initial, n_t_global, Turbine(iTurb), ErrStat, ErrMsg )                  
+
+      if(Turbine(iTurb)%SC%p%scOn) then
+         CALL SC_SetInputs(Turbine(iTurb)%p_FAST, Turbine(iTurb)%SrvD%y, Turbine(iTurb)%SC, ErrStat, ErrMsg)
+      end if
+      
+      if (iTurb .eq. (NumTurbines-1) ) then
+         n_t_global = n_t_global + 1
+      end if
+            
+      ErrStat_c = ErrStat
+      ErrMsg = TRIM(ErrMsg)//C_NULL_CHAR
+      ErrMsg_c  = TRANSFER( ErrMsg//C_NULL_CHAR, ErrMsg_c )
+
+   END IF
+
+end subroutine FAST_OpFM_Step 
 
 end module
